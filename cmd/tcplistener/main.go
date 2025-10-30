@@ -54,7 +54,7 @@ func main() {
 	listener, err := net.Listen("tcp", ":42069")
 
 	if err != nil {
-		fmt.Println("Error Happend", err.Error())
+		fmt.Println("Error Happened", err.Error())
 	}
 
 	defer listener.Close()
