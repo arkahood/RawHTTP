@@ -28,14 +28,16 @@ func main() {
 				fmt.Println("error happened", err.Error())
 			}
 
-			fmt.Println("Request line:")
-			fmt.Println("Method: ", req.RequestLine.Method)
-			fmt.Println("Http Version: ", req.RequestLine.HttpVersion)
-			fmt.Println("Target: ", req.RequestLine.RequestTarget)
+			fmt.Println("Request line")
+			fmt.Println("- Method: ", req.RequestLine.Method)
+			fmt.Println("- Http Version: ", req.RequestLine.HttpVersion)
+			fmt.Println("- Target: ", req.RequestLine.RequestTarget)
 			fmt.Println("Headers")
 			for key, val := range req.Headers {
-				fmt.Println(key, ": ", val)
+				fmt.Println("- ", key, ": ", val)
 			}
+			fmt.Println("Body")
+			fmt.Println(string(req.Body))
 		}(conn)
 	}
 }
