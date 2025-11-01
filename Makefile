@@ -1,2 +1,2 @@
 run:
-	go run ./cmd/tcplistener/
+	go run ./cmd/tcplistener/ | tee tcplistener.log
