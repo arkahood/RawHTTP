@@ -11,18 +11,19 @@ const crlf = "\r\n"
 
 type Headers map[string]string
 
-// there can be an unlimited amount of whitespace
-// before and after the field-value (Header value). However, when parsing a field-name,
-// there must be no spaces betwixt the colon and the field-name. In other words,
-// these are valid:
-
-// 'Host: localhost:42069'
-// '          Host: localhost:42069    '
-
+// Parse parses HTTP header field lines from the given data.
+// There can be an unlimited amount of whitespace before and after the field-value (Header value).
+// However, when parsing a field-name, there must be no spaces between the colon and the field-name.
+// In other words, these are valid:
+//
+//	'Host: localhost:42069'
+//	'          Host: localhost:42069    '
+//
 // But this is not:
-
-// Host : localhost:42069
-
+//
+//	'Host : localhost:42069'
+//
+// - Returns how many bytes consumed, whether parsing is done, and any error encountered.
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	endIdx := strings.Index(string(data), crlf)
 	if endIdx == -1 {
@@ -60,6 +61,12 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	return endIdx + 2, false, nil
 }
 
+func (h Headers) GET(key string) string {
+	return h[strings.ToLower(key)]
+}
+
+// isValidFieldName checks if the given field name contains only valid characters
+// according to HTTP specification.
 func isValidFieldName(fieldName string) bool {
 	allowedSpecials := map[rune]bool{
 		'!': true, '#': true, '$': true, '%': true, '&': true, '\'': true,

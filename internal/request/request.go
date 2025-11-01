@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -15,13 +16,15 @@ type RequestState int
 
 const (
 	RequestStateInitialized RequestState = iota
-	RequestStateDone
 	RequestStateParsingHeaders
+	RequestParsingBody
+	RequestStateDone
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	State       RequestState
 }
 
@@ -83,39 +86,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	return req, nil
 }
 
-func parseRequestLine(data string) (*RequestLine, int, error) {
-	// Look for the CRLF that marks the end of the request line
-	endIdx := strings.Index(data, crlf)
-	if endIdx == -1 {
-		// Not enough data yet; no CRLF found
-		return nil, 0, nil
-	}
-
-	// Extract the request line (without the trailing CRLF)
-	reqLine := data[:endIdx]
-
-	parts := strings.Split(reqLine, " ")
-	if len(parts) != 3 {
-		return nil, endIdx + 2, errors.New("invalid number of parts in request line")
-	}
-	//  "method" part only contains capital alphabetic characters.
-	if strings.ToUpper(parts[0]) != parts[0] {
-		return nil, endIdx + 2, errors.New("http method is not capitalized")
-	}
-
-	httpVersion := strings.Replace(parts[2], "HTTP/", "", 1)
-
-	if httpVersion != "1.1" {
-		return nil, endIdx + 2, errors.New("http/1.1 only supported")
-	}
-
-	return &RequestLine{
-		Method:        parts[0],
-		HttpVersion:   httpVersion,
-		RequestTarget: parts[1],
-	}, endIdx + 2, nil
-}
-
 func (r *Request) parse(data []byte) (int, error) {
 	totalBytesParsed := 0
 	for r.State != RequestStateDone {
@@ -156,10 +126,65 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-			r.State = RequestStateDone
+			r.State = RequestParsingBody
 		}
 		return numberOfBytes, nil
 	}
 
+	if r.State == RequestParsingBody {
+		contentLen := r.Headers.GET("Content-Length")
+		// content-length not present in headers no body
+		if len(contentLen) == 0 {
+			r.State = RequestStateDone
+			return 0, nil
+		}
+		contentLenInt, err := strconv.Atoi(contentLen)
+		if err != nil {
+			return 0, errors.New("content-length doesn't convert to int")
+		}
+		if len(data) > contentLenInt {
+			return 0, errors.New("body is larger than the content-length")
+		}
+		if len(data) == contentLenInt {
+			r.Body = append(r.Body, data...)
+			r.State = RequestStateDone
+			return len(data), nil
+		}
+		return 0, nil
+	}
+
 	return 0, errors.New("unknown request status")
+}
+
+func parseRequestLine(data string) (*RequestLine, int, error) {
+	// Look for the CRLF that marks the end of the request line
+	endIdx := strings.Index(data, crlf)
+	if endIdx == -1 {
+		// Not enough data yet; no CRLF found
+		return nil, 0, nil
+	}
+
+	// Extract the request line (without the trailing CRLF)
+	reqLine := data[:endIdx]
+
+	parts := strings.Split(reqLine, " ")
+	if len(parts) != 3 {
+		return nil, endIdx + 2, errors.New("invalid number of parts in request line")
+	}
+	//  "method" part only contains capital alphabetic characters.
+	if strings.ToUpper(parts[0]) != parts[0] {
+		return nil, endIdx + 2, errors.New("http method is not capitalized")
+	}
+
+	httpVersion := strings.Replace(parts[2], "HTTP/", "", 1)
+
+	if httpVersion != "1.1" {
+		return nil, endIdx + 2, errors.New("http/1.1 only supported")
+	}
+
+	return &RequestLine{
+		Method:        parts[0],
+		HttpVersion:   httpVersion,
+		RequestTarget: parts[1],
+	}, endIdx + 2, nil
 }
