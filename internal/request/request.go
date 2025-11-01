@@ -56,7 +56,12 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				req.State = RequestStateDone
+				// if the EOF is reached but req isn't done state
+				// then partial content
+				if req.State != RequestStateDone {
+					req.State = RequestStateDone
+					return req, errors.New("partial content")
+				}
 				break
 			}
 			return nil, err
