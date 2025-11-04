@@ -1,45 +1,19 @@
 package main
 
 import (
-	"RAWHTTP/internal/request"
-	"RAWHTTP/internal/server"
 	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"RAWHTTP/internal/request"
+	"RAWHTTP/pkg/server"
 )
 
 const port = 8080
 
-func handler(w io.Writer, req *request.Request) *server.HandlerError {
-	// Check if the request target is /yourproblem
-	if req.RequestLine.RequestTarget == "/yourproblem" {
-		return &server.HandlerError{
-			StatusCode: 400,
-			Message:    "Your problem is not my problem\n",
-		}
-	}
-
-	if req.RequestLine.RequestTarget == "/myproblem" {
-		return &server.HandlerError{
-			StatusCode: 500,
-			Message:    "My problem is not my problem\n",
-		}
-	}
-
-	if req.RequestLine.RequestTarget == "/route1" {
-		message := "This is Route1\n"
-		_, err := w.Write([]byte(message))
-		if err != nil {
-			return &server.HandlerError{
-				StatusCode: 500,
-				Message:    "Internal Server Error: failed to write response",
-			}
-		}
-		return nil
-	}
-
+func handler1(w io.Writer, req *request.Request) *server.HandlerError {
 	// Write a simple response
 	message := "Hello World!\n"
 	_, err := w.Write([]byte(message))
@@ -52,8 +26,26 @@ func handler(w io.Writer, req *request.Request) *server.HandlerError {
 	return nil
 }
 
+func handler2(w io.Writer, req *request.Request) *server.HandlerError {
+	// Write a simple response
+	message := "Hello World2!\n"
+	_, err := w.Write([]byte(message))
+	if err != nil {
+		return &server.HandlerError{
+			StatusCode: 500,
+			Message:    "Internal Server Error: failed to write response",
+		}
+	}
+	return nil
+}
+
 func main() {
-	server, err := server.Serve(handler, port)
+	r := server.NewRouter()
+	server, err := server.Serve(r, port)
+
+	r.AddRoute("/", handler1)
+	r.AddRoute("/second-route", handler2)
+
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}

@@ -1,20 +1,35 @@
 package server
 
 import (
-	"RAWHTTP/internal/request"
-	"RAWHTTP/internal/response"
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
+
+	"RAWHTTP/internal/request"
+	"RAWHTTP/internal/response"
 )
 
 type Server struct {
 	listener       net.Listener
 	serverIsClosed atomic.Bool
-	handler        Handler
+	handler        *Router
+}
+
+type Router struct {
+	routes map[string]Handler
+}
+
+func (r *Router) AddRoute(route string, fn Handler) {
+	r.routes[route] = fn
+}
+
+func NewRouter() *Router {
+	return &Router{
+		routes: make(map[string]Handler),
+	}
 }
 
 type HandlerError struct {
@@ -58,14 +73,14 @@ func (hErr *HandlerError) WriteHandlerError(w io.Writer) error {
 	return err
 }
 
-func Serve(h Handler, port int) (*Server, error) {
+func Serve(r *Router, port int) (*Server, error) {
 	lstnr, err := net.Listen("tcp", fmt.Sprint(":", port))
 	if err != nil {
 		return nil, errors.New("tcp error happened")
 	}
 	server := Server{
 		listener: lstnr,
-		handler:  h,
+		handler:  r,
 	}
 
 	go server.listen()
@@ -109,7 +124,17 @@ func (s *Server) handle(conn net.Conn) {
 	buf := bytes.NewBuffer([]byte{})
 
 	// Call the handler function
-	handlerErr := s.handler(buf, req)
+	handler, exists := s.handler.routes[req.RequestLine.RequestTarget]
+	if !exists {
+		handlerErr := &HandlerError{
+			StatusCode: 404,
+			Message:    "Not Found: " + req.RequestLine.RequestTarget,
+		}
+		handlerErr.WriteHandlerError(conn)
+		return
+	}
+
+	handlerErr := handler(buf, req)
 
 	// If the handler errors, write the error to the connection
 	if handlerErr != nil {
